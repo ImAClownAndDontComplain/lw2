@@ -6,14 +6,14 @@
 #include <iostream>
 
 using namespace glm;
-float scalex = 0.001;
-float scaley = 0.001;
+float scalex = 0.0001;
+float scaley = 0.0001;
 float scaler = 0.005;
 float scale = 3.14;
 
 mat4 World{ //translation
-    World[0][0] = 1.0f, World[0][1] = 0.0f, World[0][2] = 0.0f, World[0][3] = sinf(scalex),
-    World[1][0] = 0.0f, World[1][1] = 1.0f, World[1][2] = 0.0f, World[1][3] = sinf(scaley),
+    World[0][0] = 1.0f, World[0][1] = 0.0f, World[0][2] = 0.0f, World[0][3] = 10*sinf(scalex),
+    World[1][0] = 0.0f, World[1][1] = 1.0f, World[1][2] = 0.0f, World[1][3] = 10*sinf(scaley),
     World[2][0] = 0.0f, World[2][1] = 0.0f, World[2][2] = 1.0f, World[2][3] = 0.0f,
     World[3][0] = 0.0f, World[3][1] = 0.0f, World[3][2] = 0.0f, World[3][3] = 1.0f
 };
@@ -48,20 +48,32 @@ vec4 mult(mat4 M, vec4 V) {
 }
 
 void trans(vec3 &V) {
+    World[0][0] = 1.0f; World[0][1] = 0.0f; World[0][2] = 0.0f; World[0][3] = 10 * sinf(scalex);
+    World[1][0] = 0.0f; World[1][1] = 1.0f; World[1][2] = 0.0f; World[1][3] = 10 * sinf(scaley);
+    World[2][0] = 0.0f; World[2][1] = 0.0f; World[2][2] = 1.0f; World[2][3] = 0.0f;
+    World[3][0] = 0.0f; World[3][1] = 0.0f; World[3][2] = 0.0f; World[3][3] = 1.0f;
     vec4 v1 = mult(World, vec4(V, 1.0));
-    std::cout << scaley << "\n";
+    //std::cout << v1.x << "\n";
     V = vec3(v1);
 }
 
 void rot(vec3& V) {
+    Worldr[0][0] = cosf(scaler); Worldr[0][1] = -sinf(scaler); Worldr[0][2] = 0.0f; Worldr[0][3] = 0.0;
+    Worldr[1][0] = sinf(scaler); Worldr[1][1] = cosf(scaler); Worldr[1][2] = 0.0f; Worldr[1][3] = 0.0;
+    Worldr[2][0] = 0.0f; Worldr[2][1] = 0.0f; Worldr[2][2] = 1.0f; Worldr[2][3] = 0.0f;
+    Worldr[3][0] = 0.0f; Worldr[3][1] = 0.0f; Worldr[3][2] = 0.0f; Worldr[3][3] = 1.0f;
     vec4 v1 = mult(Worldr, vec4(V, 1.0));
     //std::cout << v1.x << "\n";
     V = vec3(v1);
 }
 
 void scal(vec3& V) {
+    Worldr[0][0] = 1+sinf(scaler); Worldr[0][1] = 0.0f; Worldr[0][2] = 0.0f; Worldr[0][3] = 0.0;
+    Worldr[1][0] = 0.0f; Worldr[1][1] = 1+sinf(scaler); Worldr[1][2] = 0.0f; Worldr[1][3] = 0.0;
+    Worldr[2][0] = 0.0f; Worldr[2][1] = 0.0f; Worldr[2][2] = 1+sinf(scaler); Worldr[2][3] = 0.0f;
+    Worldr[3][0] = 0.0f; Worldr[3][1] = 0.0f; Worldr[3][2] = 0.0f; Worldr[3][3] = 1.0f;
     vec4 v1 = mult(Worlds, vec4(V, 1.0));
-    std::cout << v1.x << "\n";
+    //std::cout << v1.x << "\n";
     V = vec3(v1);
 }
 
@@ -69,13 +81,12 @@ GLuint VBO;
 
 void RenderSceneGB() { 
     for (int i = 0; i < 3; i++) {
-        if (Triangle[i].x < -1) scalex *= -1; 
-        if (Triangle[i].x > 1) scalex *= -1; 
-        if (Triangle[i].y > 1) scaley *= -1; 
-        if (i==0 && Triangle[i].y < -1) scaley *= -1;
-        trans(Triangle[i]);
-        //rot(Triangle[i]);
-        //scal(Triangle[i]);
+        if (i == 0 && Triangle[i].x < -1) { scalex *= -1; scale *= -1; }
+        if (i == 1 && Triangle[i].x > 1) { scalex *= -1; }
+        if (Triangle[i].y > 1)scaley *= -1;
+        if (i == 0 && Triangle[i].y < -1)scaley *= -1;
+        scal(Triangle[i]);
+
     }
     glGenBuffers(1, &VBO);
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
