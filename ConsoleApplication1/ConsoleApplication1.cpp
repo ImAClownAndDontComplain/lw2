@@ -7,7 +7,7 @@
 #include "glm/mat4x4.hpp"
 #include <iostream>
 
-float scale = 0.01;
+float scale = 0.01f;
 
 using namespace glm;
 
@@ -42,12 +42,22 @@ mat4 m = {
         m[3][0] = 0.0f, m[3][1] = 0.0f, m[3][2] = 0.0f, m[3][3] = 1.0f,
 };
 
+struct projection {
+    float FOV;
+    float Width;
+    float Height;
+    float zNear;
+    float zFar;
+};
+
 class Pipeline
 {
 private:
-    mat4 ScaleTrans = m, RotateTrans = m, TransTrans = m;
+    mat4 ScaleTrans, RotateTrans, TransTrans, Proj;
     vec3 m_scale, m_trans, m_rot;
     mat4 m_transform;
+    projection myproj;
+
     
     void InitScaleTransform() {
         ScaleTrans = m;
@@ -81,6 +91,21 @@ private:
         TransTrans[1][3] = 10*m_trans.y;
         TransTrans[2][3] = m_trans.z;
     };
+    void InitPerspective() {
+        float ar = myproj.Width / myproj.Height;
+        float zNear = myproj.zNear;
+        float zFar = myproj.zFar;
+        float zRange = zNear - zFar;
+        float tanHalfFOV = tanf(radians(myproj.FOV / 2.0));
+
+        Proj = m;
+        Proj[0][0] = 1 / (tanHalfFOV * ar);
+        Proj[1][1] = 1 / tanHalfFOV;
+        Proj[2][2] = (-zNear - zFar) / zRange;
+        Proj[2][3] = 2. * zFar * zNear / zRange;
+        Proj[3][2] = 1.0f;
+        Proj[3][3] = 0.0f;
+    };
 
 public:
     Pipeline() {
@@ -102,6 +127,14 @@ public:
         m_rot = { x, y,z};
     }
 
+    void proj(float a, float b, float c, float d, float e) {
+        myproj.FOV = a;
+        myproj.Height = b;
+        myproj.Width = c;
+        myproj.zFar = d;
+        myproj.zNear = e;
+    }
+
     mat4* GetTrans();
 };
 mat4* Pipeline::GetTrans()
@@ -109,7 +142,9 @@ mat4* Pipeline::GetTrans()
     InitScaleTransform();
     InitRotateTransform();
     InitTranslationTransform();
-    m_transform = ScaleTrans * RotateTrans * TransTrans;
+    InitPerspective();
+    //m_transform = ScaleTrans * RotateTrans * TransTrans;
+    m_transform = ScaleTrans * RotateTrans * TransTrans * Proj;
     return &m_transform;
 }
 
@@ -121,9 +156,10 @@ static void RenderSceneCB()
     scale += 0.001f;
 
     Pipeline p;
-    p.scale(sinf(scale), sinf(scale), sinf(scale));
+    //p.scale(sinf(scale), sinf(scale), sinf(scale));
     p.trans(sinf(scale), 0.0f, 0.0f);
     p.rotate(scale, scale, scale);
+    p.proj(30.0f, 1024, 768, 1.0f, 1000.0f);
 
     glUniformMatrix4fv(gWorldLocation, 1, GL_TRUE, (const GLfloat*)p.GetTrans());
 
@@ -159,7 +195,6 @@ void genbuffers() {
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBO);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(Indices), Indices, GL_STATIC_DRAW);
 }
-
 void genshaders(const char* shadertext_v, const char* shadertext_f)
 {
     GLint success; 	GLchar InfoLog[1024];
