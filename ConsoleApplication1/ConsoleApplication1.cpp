@@ -17,22 +17,22 @@ GLuint gWorldLocation;
 
 static const char* vertex = "                                                      \n\
     #version 330                                                                   \n\
-    layout (location = 0) in vec3 pos;                                             \n\
+    in vec3 pos;                                                                   \n\
     uniform mat4 gWorld;                                                           \n\
-    out vec4 color;                                                                \n\
+    out vec4 vertexcolor;                                                          \n\
     void main()                                                                    \n\
     {                                                                              \n\
         gl_Position = vec4(pos, 1.0) * gWorld ;                                    \n\
-        color = vec4(clamp(pos, 0.0, 1.0), 0.5);                                   \n\
+        vertexcolor = vec4(clamp(pos, 0.0, 1.0), 0.5);                             \n\
     }";
 
 static const char* frag = "                                                         \n\
     #version 330                                                                    \n\
-    in vec4 color;                                                                  \n\
+    in vec4 vertexcolor;                                                            \n\
     out vec4 fragcolor;                                                             \n\
     void main()                                                                     \n\
     {                                                                               \n\
-        fragcolor = color;                                                          \n\
+        fragcolor = vertexcolor;                                                    \n\
     }";
 
 mat4 m = {
@@ -42,6 +42,20 @@ mat4 m = {
         m[3][0] = 0.0f, m[3][1] = 0.0f, m[3][2] = 0.0f, m[3][3] = 1.0f,
 };
 
+vec3 cross(vec3 v1, vec3 v2) {
+    float x = v1.y * v2.z - v1.z * v2.y;
+    float y = v1.z * v2.x - v1.x * v2.z;
+    float z = v1.x * v2.y - v1.y * v2.x;
+    return vec3(x, y, z);
+}
+
+void norm(vec3& v) {
+    float len = sqrtf(v.x * v.x + v.y * v.y + v.z * v.z);
+    v.x /= len;
+    v.y /= len;
+    v.z /= len;
+}
+
 struct projection {
     float FOV;
     float Width;
@@ -50,13 +64,20 @@ struct projection {
     float zFar;
 };
 
+struct camera {
+    vec3 pos;
+    vec3 target;
+    vec3 up;
+};
+
 class Pipeline
 {
 private:
-    mat4 ScaleTrans, RotateTrans, TransTrans, Proj;
+    mat4 ScaleTrans, RotateTrans, TransTrans, Proj, Cam;
     vec3 m_scale, m_trans, m_rot;
     mat4 m_transform;
     projection myproj;
+    camera mycam;
 
     
     void InitScaleTransform() {
@@ -106,6 +127,18 @@ private:
         Proj[3][2] = 1.0f;
         Proj[3][3] = 0.0f;
     };
+    void InitCamera() {
+        vec3 t = mycam.target;
+        vec3 u = mycam.up;
+        norm(t);
+        norm(u);
+        u = cross(u, mycam.target);
+        vec3 v = cross(t, u);
+        Cam = m;
+        Cam[0][0] = u.x; Cam[0][1] = u.y; Cam[0][2] = u.z;
+        Cam[1][0] = v.x; Cam[1][1] = v.y; Cam[1][2] = v.z;
+        Cam[2][0] = t.x; Cam[2][1] = t.y; Cam[2][2] = t.z;
+    }
 
 public:
     Pipeline() {
@@ -135,8 +168,15 @@ public:
         myproj.zNear = e;
     }
 
+    void cam(vec3 pos, vec3 target, vec3 up) {
+        mycam.pos = pos;
+        mycam.target = target;
+        mycam.up = up;
+    }
+
     mat4* GetTrans();
 };
+
 mat4* Pipeline::GetTrans()
 {
     InitScaleTransform();
@@ -153,13 +193,13 @@ static void RenderSceneCB()
     glClearColor(0.5f, 0.5f, 0.5f, 0.0f); 
     glClear(GL_COLOR_BUFFER_BIT);
 
-    scale += 0.001f;
+    scale += 0.01f;
 
     Pipeline p;
     //p.scale(sinf(scale), sinf(scale), sinf(scale));
     p.trans(sinf(scale), 0.0f, 0.0f);
-    p.rotate(scale, scale, scale);
-    p.proj(30.0f, 1024, 768, 1.0f, 1000.0f);
+    p.rotate(scale, 0, scale);
+    p.proj(30.0f, 800, 800, 1.0f, 1000.0f);
 
     glUniformMatrix4fv(gWorldLocation, 1, GL_TRUE, (const GLfloat*)p.GetTrans());
 
@@ -174,12 +214,13 @@ static void RenderSceneCB()
 
     glutSwapBuffers();
 }
+
 void genbuffers() {
     vec3 Pyramid[4]{
-       { -0.2, -0.2, 0.0 },
-       { 0.0, 0.2, 0.2 },
-       { 0.2,-0.2, 0.0},
-        { 0, 0.6, 0.0 },
+       { -1, -1, 10 },
+       { 0, -1, 10 },
+       { 0, -1, 10},
+        { 0, 1, 20 },
     };
 
     glGenBuffers(1, &VBO);
@@ -195,7 +236,72 @@ void genbuffers() {
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBO);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(Indices), Indices, GL_STATIC_DRAW);
 }
-void genshaders(const char* shadertext_v, const char* shadertext_f)
+
+GLuint genshader(const char* shadertext, GLenum shaderType) { 
+    GLuint shader = glCreateShader(shaderType);
+
+    GLint success; 	GLchar InfoLog[1024];
+
+    const GLchar* vertexShaderSource[1];
+    vertexShaderSource[0] = shadertext;
+    glShaderSource(shader, 1, vertexShaderSource, NULL);
+
+    glCompileShader(shader);
+
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+    if (!success)
+    {
+        glGetShaderInfoLog(shader, sizeof(InfoLog), NULL, InfoLog);
+        printf("Error compiling shader: '%s'\n", InfoLog);
+    }
+    return shader;
+}
+
+void bindshader(GLuint program, GLuint shader) {
+    GLint success; 	GLchar InfoLog[1024];
+
+    glAttachShader(program, shader);
+    glLinkProgram(program);
+
+    glGetProgramiv(program, GL_LINK_STATUS, &success);
+    if (success == 0)
+    {
+        glGetProgramInfoLog(program, sizeof(InfoLog), NULL, InfoLog);
+        printf("Error linking shader program: '%s'\n", InfoLog);
+    }
+}
+
+
+int main(int argc, char** argv)
+{
+    glutInit(&argc, argv);
+    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
+    glutInitWindowSize(800, 800);
+    glutInitWindowPosition(100, 100);
+    glutCreateWindow("IDKWTD");
+
+    glutDisplayFunc(RenderSceneCB);
+    glutIdleFunc(RenderSceneCB);
+
+    GLenum res = glewInit();
+    if (res != GLEW_OK) {
+        fprintf(stderr, "Error: '%s'\n", glewGetErrorString(res));
+        return 1;
+    }
+    
+    genbuffers();
+    GLuint vshader = genshader(vertex, GL_VERTEX_SHADER);
+    GLuint fshader = genshader(frag, GL_FRAGMENT_SHADER);
+    GLuint program = glCreateProgram();
+    bindshader(program, vshader);
+    bindshader(program, fshader);
+    glUseProgram(program);
+    //genshaders(vertex, frag);
+
+    glutMainLoop();
+}
+
+/*void genshaders(const char* shadertext_v, const char* shadertext_f)
 {
     GLint success; 	GLchar InfoLog[1024];
     GLuint ShaderProgram = glCreateProgram();
@@ -218,13 +324,13 @@ void genshaders(const char* shadertext_v, const char* shadertext_f)
     if (!success)
     {
         glGetShaderInfoLog(vertexShader, sizeof(InfoLog), NULL, InfoLog);
-        fprintf(stderr, "Error compiling shader type %d: '%s'\n", GL_VERTEX_SHADER, InfoLog);
+        printf("Error compiling shader type %d: '%s'\n", GL_VERTEX_SHADER, InfoLog);
     }
     glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
     if (!success)
     {
         glGetShaderInfoLog(fragmentShader, sizeof(InfoLog), NULL, InfoLog);
-        fprintf(stderr, "Error compiling shader type %d: '%s'\n", GL_FRAGMENT_SHADER, InfoLog);
+        printf("Error compiling shader type %d: '%s'\n", GL_FRAGMENT_SHADER, InfoLog);
     }
 
     glAttachShader(ShaderProgram, vertexShader);
@@ -235,38 +341,14 @@ void genshaders(const char* shadertext_v, const char* shadertext_f)
     if (success == 0)
     {
         glGetProgramInfoLog(ShaderProgram, sizeof(InfoLog), NULL, InfoLog);
-        fprintf(stderr, "Error linking shader program: '%s'\n", InfoLog);
+        printf("Error linking shader program: '%s'\n", InfoLog);
     }
 
     glUseProgram(ShaderProgram);
 
     gWorldLocation = glGetUniformLocation(ShaderProgram, "gWorld");
-    assert(gWorldLocation != 0xFFFFFFFF);
-}
-
-int main(int argc, char** argv)
-{
-    glutInit(&argc, argv);
-    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
-    glutInitWindowSize(1024, 768);
-    glutInitWindowPosition(100, 100);
-    glutCreateWindow("IDKWTD");
-
-    glutDisplayFunc(RenderSceneCB);
-    glutIdleFunc(RenderSceneCB);
-
-    GLenum res = glewInit();
-    if (res != GLEW_OK) {
-        fprintf(stderr, "Error: '%s'\n", glewGetErrorString(res));
-        return 1;
-    }
-    
-    genbuffers();
-    genshaders(vertex, frag);
-
-    glutMainLoop();
-}
-
+    //assert(gWorldLocation != 0xFFFFFFFF);
+}*/
 ////#include <GL/glew.h>
 ////#include <GL/freeglut.h>
 ////#include "glm/glm.hpp"
