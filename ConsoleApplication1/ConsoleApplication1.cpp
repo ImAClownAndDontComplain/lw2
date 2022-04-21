@@ -4,6 +4,10 @@
 #include <iostream>
 
 float scale = 0.01f;
+const float winH = 800;
+const float winW = 800;
+GLint success; 	
+GLchar InfoLog[1024];
 
 using namespace glm;
 
@@ -13,7 +17,7 @@ GLint gWorldLocation;
 
 static const char* vertex = "                                                      \n\
     #version 330                                                                   \n\
-    in vec3 pos;                                                                   \n\
+    layout (location = 0) in vec3 pos;                                             \n\
     uniform mat4 gWorld;                                                           \n\
     out vec4 vertexcolor;                                                          \n\
     void main()                                                                    \n\
@@ -34,33 +38,28 @@ static const char* frag = "                                                     
 GLuint genshader(const char* shadertext, GLenum shaderType) { 
     GLuint shader = glCreateShader(shaderType);
 
-    GLint success; 	GLchar InfoLog[1024];
-
     const GLchar* ShaderSource[1];
     ShaderSource[0] = shadertext;
-    glShaderSource(shader, 1, ShaderSource, NULL);
+    glShaderSource(shader, 1, ShaderSource, nullptr);
 
     glCompileShader(shader);
 
     glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
     if (!success)
     {
-        glGetShaderInfoLog(shader, sizeof(InfoLog), NULL, InfoLog);
-        printf("Error compiling shader: '%s'\n", InfoLog);
+        glGetShaderInfoLog(shader, sizeof(InfoLog), nullptr, InfoLog);
+        std::cerr << "Error compiling shader: " << InfoLog << std::endl;
     }
     return shader;
 }
 void bindshader(GLuint program, GLuint shader) {
-    GLint success; 	GLchar InfoLog[1024];
-
     glAttachShader(program, shader);
-    glLinkProgram(program);
 
     glGetProgramiv(program, GL_LINK_STATUS, &success);
     if (success == 0)
     {
-        glGetProgramInfoLog(program, sizeof(InfoLog), NULL, InfoLog);
-        printf("Error linking shader program: '%s'\n", InfoLog);
+        glGetProgramInfoLog(program, sizeof(InfoLog), nullptr, InfoLog);
+        std::cerr << "Error linking shader program: " << InfoLog << std::endl;
     }
 }
 void genbuffers() {
@@ -243,7 +242,7 @@ mat4* Pipeline::GetTrans()
     return &m_transform;
 }
 
-static void RenderSceneCB()
+void RenderSceneCB()
 {
     glClearColor(0.5f, 0.5f, 0.5f, 0.0f); 
     glClear(GL_COLOR_BUFFER_BIT);
@@ -254,7 +253,7 @@ static void RenderSceneCB()
     p.scale(1, 1, 1);
     p.trans(sinf(scale), 0.0f, 0.0f);
     p.rotate( 0, scale, 0);
-    p.proj(30.0f, 800, 800, 1.0f, 1000.0f);
+    p.proj(30.0f, winH, winW, 1.0f, 1000.0f);
     vec3 pos(1.0, 1.0, 3.0);
     vec3 target(0.45, 0.0, 1.0);
     vec3 up(0.0, 1.0, 0.0);
@@ -279,13 +278,13 @@ int main(int argc, char** argv)
 {
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
-    glutInitWindowSize(800, 800);
+    glutInitWindowSize(winH, winW);
     glutInitWindowPosition(100, 100);
     glutCreateWindow("IDKWTD");
 
     GLenum res = glewInit();
     if (res != GLEW_OK) {
-        printf("Error: '%s'\n", glewGetErrorString(res));
+        std::cerr << "Error: " << glewGetErrorString(res) << std::endl;
         return 1;
     }
     
@@ -295,8 +294,16 @@ int main(int argc, char** argv)
     GLuint program = glCreateProgram();
     bindshader(program, vshader);
     bindshader(program, fshader);
+
+    glLinkProgram(program);
     glUseProgram(program);
 
+    gWorldLocation = glGetUniformLocation(program, "gWorld");
+    assert(gWorldLocation != 0xFFFFFFFF);
+
+
     glutDisplayFunc(RenderSceneCB);
+    glutIdleFunc(RenderSceneCB);
+
     glutMainLoop();
 }
