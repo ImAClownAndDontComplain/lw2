@@ -253,7 +253,7 @@ void RenderSceneCB()
     p.scale(1, 1, 1);
     p.trans(sinf(scale), 0.0f, 0.0f);
     p.rotate( 0, scale, 0);
-    p.proj(30.0f, winH, winW, 1.0f, 1000.0f);
+    p.proj(30.0f, winW, winH, 1.0f, 1000.0f);
     vec3 pos(1.0, 1.0, 3.0);
     vec3 target(0.45, 0.0, 1.0);
     vec3 up(0.0, 1.0, 0.0);
@@ -278,7 +278,7 @@ int main(int argc, char** argv)
 {
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
-    glutInitWindowSize(winH, winW);
+    glutInitWindowSize(winW, winH);
     glutInitWindowPosition(100, 100);
     glutCreateWindow("IDKWTD");
 
